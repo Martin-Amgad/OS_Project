@@ -1,0 +1,1 @@
+"""Live Gantt chart rendering widgets."""
