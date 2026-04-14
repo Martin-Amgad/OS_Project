@@ -195,6 +195,9 @@ class BaseScheduler(ABC):
     # ---- DYNAMIC PROCESS MANAGEMENT ----
     def add_dynamic_process(self, process: Process) -> None:
         """Add a new process while simulation is running."""
+        # Reopen the scheduler if it had reached a finished state.
+        self.is_finished = False
+
         new_process = Process(process.pid, process.arrival_time, 
                        process.burst_time, process.priority)
         self.processes.append(new_process)
