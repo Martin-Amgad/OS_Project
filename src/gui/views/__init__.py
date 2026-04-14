@@ -1,1 +1,0 @@
-"""Tkinter views and screens."""

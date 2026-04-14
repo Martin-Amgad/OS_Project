@@ -1,1 +1,0 @@
-"""Test package placeholder for scheduler and GUI validation."""
