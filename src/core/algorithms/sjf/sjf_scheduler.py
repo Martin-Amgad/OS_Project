@@ -1,8 +1,8 @@
 """SJF scheduler implementation (preemptive and non-preemptive)."""
 from typing import Any, Dict
 
-from ...base_scheduler import BaseScheduler
-from ....models import Process
+from ...scheduler.base_scheduler import BaseScheduler
+from ...models import Process
 
 
 class SJFScheduler(BaseScheduler):
