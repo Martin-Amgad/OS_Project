@@ -18,7 +18,11 @@ class FCFSScheduler(BaseScheduler):
         return "FCFS (First Come First Served)"
     
     def tick(self) -> Dict[str, Any]:
-              
+        
+        # Early return if simulation is already finished
+        if self.is_finished:
+            return self._get_return_dict()   
+            
         # Check for new process arrivals at current time
         # This adds any processes with arrival_time == current_time
         # to the ready queue in the order they appear in self.processes
