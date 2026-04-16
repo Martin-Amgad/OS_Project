@@ -1,32 +1,31 @@
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-# Import the new Process model (assuming it's in core.models based on your previous imports)
+# process model
 from src.core.models import Process
 
-# Import from your new algorithms folder structure
-# (Adjust the class names exactly to whatever you named them inside those folders!)
+# schedulers
 from src.core.algorithms.fcfs.fcfs_scheduler import FCFSScheduler
 from src.core.algorithms.sjf.sjf_scheduler import SJFScheduler
 from src.core.algorithms.priority.priority_scheduler import PriorityScheduler
 from src.core.algorithms.round_robin.rr_scheduler import RoundRobinScheduler
 
-# Constants for the UI dropdowns
+# ui options
 ALGO_FCFS = "FCFS"
 ALGO_SJF = "SJF"
 ALGO_PRIORITY = "Priority"
 ALGO_RR = "Round Robin"
 
-# ==========================================
-# 1. GLOBAL STATE VARIABLES
-# ==========================================
+
+# globals
 scheduler = None
-initial_processes = []  # Holds processes before simulation starts
+initial_processes = []  # process queue
 running = False
 tick_job = None
 pid_to_color = {}
 color_index = 0
 
+# gantt chart settings
 SLOT_WIDTH = 40
 SLOT_HEIGHT = 40
 CHART_MARGIN_X = 20
@@ -36,9 +35,8 @@ COLORS = [
     "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"
 ]
 
-# ==========================================
-# 2. UI INITIALIZATION
-# ==========================================
+
+# main window
 root = tk.Tk()
 root.title("CPU Scheduling Simulator")
 root.geometry("1250x760")
@@ -47,7 +45,7 @@ root.minsize(1050, 680)
 root.columnconfigure(0, weight=1)
 root.rowconfigure(2, weight=1)
 
-# --- Variables ---
+# tkinter stuffs
 algorithm_var = tk.StringVar(value=ALGO_FCFS)
 preemptive_var = tk.BooleanVar(value=False)
 quantum_var = tk.StringVar(value="2")
@@ -65,7 +63,7 @@ avg_wait_var = tk.StringVar(value="Average Waiting Time: 0.00")
 avg_turn_var = tk.StringVar(value="Average Turnaround Time: 0.00")
 
 
-# --- Functions ---
+# for input fields depending on algo
 def set_algorithm_fields(event=None):
     algo = algorithm_var.get()
 
@@ -89,18 +87,18 @@ def set_algorithm_fields(event=None):
         priority_label.grid_remove()
         priority_entry.grid_remove()
 
+
+# table and metrics and gantt update
 def update_ui():
-    # 1. Update Table
     for row in process_table.get_children():
         process_table.delete(row)
 
-    # Use the active scheduler's cloned processes, or our staging list if not started
+    # if running show processes from the scheduler, if not we show initial processes
     processes_to_display = scheduler.processes if scheduler else initial_processes
     current_time = scheduler.current_time if scheduler else 0
  
-    # Sort by arrival time for display consistency, but show all processes in the scheduler (including completed ones) for transparency.
+    # sort by arrival time
     for p in sorted(processes_to_display, key=lambda x: x.arrival_time):
-        
         if p.is_completed or p.remaining_time == 0:
             status = "Done"
         elif p.arrival_time > current_time:
@@ -118,42 +116,41 @@ def update_ui():
 
     process_count_var.set(f"Processes: {len(processes_to_display)}")
 
-    # If simulation hasn't started, skip drawing metrics and charts
+    # making sure we don't use null reference
     if not scheduler:
         return
 
-    # 2. Update Metrics
+    # for metrics display
     time_var.set(f"Current Time: {scheduler.current_time}")
     avg_wait, avg_turn = scheduler.calculate_statistics()
     avg_wait_var.set(f"Average Waiting Time: {avg_wait:.2f}")
     avg_turn_var.set(f"Average Turnaround Time: {avg_turn:.2f}")
 
-    # 3. Update Chart
+    # reset the chart everytime and redraw
     chart_canvas.delete("all")
     
-    # Rebuild flat timeline array from the new Gantt dictionary format
+    # gantt is like a timeline of processes
     timeline = []
     current_time = 0
     for segment in scheduler.gantt_chart:
-        print(f"Segment: {segment}")  # Debug print to verify segment structure
-        # Fill idle gaps
+        # Pad idle gaps
         if segment['start'] > current_time:
             timeline.extend(["IDLE"] * (segment['start'] - current_time))
-        # Fill process duration
+            
         timeline.extend([segment['pid']] * (segment['end'] - segment['start']))
         current_time = segment['end']
 
-    # Show trailing idle time after the last execution segment.
+    # idle time when all processes are done
     if scheduler.current_time > current_time:
         timeline.extend(["IDLE"] * (scheduler.current_time - current_time))
 
-    print(f"Final Timeline with trailing idle: {timeline}")  # Debug print to verify final timeline
     if not timeline: return
 
     width = chart_canvas.winfo_width()
     if width < 50: width = 500
     slots_per_row = max(1, (width - 2 * CHART_MARGIN_X) // SLOT_WIDTH)
 
+    # gantt chart blocks
     for i, pid in enumerate(timeline):
         row = i // slots_per_row
         col = i % slots_per_row
@@ -168,12 +165,14 @@ def update_ui():
         chart_canvas.create_text((x1 + x2) // 2, (y1 + y2) // 2, text=pid, font=("Segoe UI", 9, "bold"))
         chart_canvas.create_text(x1, y2 + 10, text=str(i), anchor="w", font=("Segoe UI", 8))
 
+        # end time on last block
         if i == len(timeline) - 1:
             chart_canvas.create_text(x2, y2 + 10, text=str(i + 1), anchor="e", font=("Segoe UI", 8))
     
     bbox = chart_canvas.bbox("all")
     if bbox:
         chart_canvas.configure(scrollregion=(0, 0, bbox[2], bbox[3] + 20))
+
 
 def add_process():
     global initial_processes, color_index
@@ -183,13 +182,13 @@ def add_process():
         messagebox.showerror("Error", "PID is required.")
         return
 
-    # Check for duplicate PIDs
+    # we mustn't allow duplicate PIDs 
     existing = scheduler.processes if scheduler else initial_processes
     if any(p.pid == pid for p in existing):
         messagebox.showerror("Error", f"Process ID '{pid}' already exists.")
         return
 
-    # Parse inputs
+    # we get input and validate it
     try:
         burst = int(burst_var.get())
         if burst <= 0: raise ValueError
@@ -201,30 +200,32 @@ def add_process():
         if live_var.get() and arrival < current_time:
             arrival = current_time
 
-        # If not using priority algo, pass None explicitly to match your Optional[int] constraint
+        # only use priority if user selected priority scheduler
         priority = int(priority_var.get()) if algorithm_var.get() == ALGO_PRIORITY else None
         
     except ValueError:
-        messagebox.showerror("Error", "Arrival, Priority must be integers. Burst must be > 0.")
+        messagebox.showerror("Error", "Arrival and Priority must be integers. Burst must be > 0.")
         return
 
-    # Create the generic Process model
+    # creating the object with a try in case it errors
     try:
         new_process = Process(pid=pid, arrival_time=arrival, burst_time=burst, priority=priority)
     except ValueError as e:
         messagebox.showerror("Error", str(e))
         return
 
-    # Add to the active scheduler timeline if it exists, even when paused/idle.
+    # add process dynamically if running, but if not we add to initial
     if scheduler:
         scheduler.add_dynamic_process(new_process)
     else:
         initial_processes.append(new_process)
 
+    # for color
     if pid not in pid_to_color:
         pid_to_color[pid] = COLORS[color_index % len(COLORS)]
         color_index += 1
 
+    # again we reset and update just like gantt
     pid_var.set("")
     burst_var.set("")
     arrival_var.set("") 
@@ -233,6 +234,7 @@ def add_process():
     
     update_ui()
 
+
 def finish_simulation():
     pause_button.config(state="disabled", text="Pause")
     start_button.config(state="normal")
@@ -240,12 +242,14 @@ def finish_simulation():
     set_algorithm_fields()
     status_var.set("Finished")
 
+
+# 1 unit loop for live mode
 def tick():
     global tick_job, running
     tick_job = None
+    
     if not running or not scheduler: return
 
-    # Tick returns the state dict, but we just update UI by reading scheduler attributes directly
     state = scheduler.tick()
     update_ui()
 
@@ -253,6 +257,7 @@ def tick():
         status_var.set("Idle (waiting for new process)")
 
     tick_job = root.after(1000, tick)
+
 
 def start_simulation():
     global running, tick_job, scheduler
@@ -262,7 +267,7 @@ def start_simulation():
         messagebox.showwarning("Warning", "Add at least one process first.")
         return
 
-    # 1. INITIALIZE SCHEDULER (Only if not resuming a paused state)
+    # we must initialize the scheduler
     if not scheduler:
         algo = algorithm_var.get()
         preemptive = preemptive_var.get()
@@ -286,6 +291,7 @@ def start_simulation():
             messagebox.showerror("Error", f"Scheduler {algo} failed to initialize!")
             return
 
+    # prevent ui settings from changing while running
     running = True
     pause_button.config(state="normal", text="Pause")
     start_button.config(state="disabled")
@@ -298,12 +304,15 @@ def start_simulation():
         tick_job = root.after(1000, tick)
     else:
         status_var.set("Running non-live mode")
-        # BaseScheduler doesn't have run_to_completion, so we loop tick() manually
+        
+        # skip timing if not live mode
         while not scheduler.is_finished:
             scheduler.tick()
+            
         running = False
         update_ui()
         finish_simulation()
+
 
 def toggle_pause():
     global running, tick_job
@@ -322,18 +331,21 @@ def toggle_pause():
         pause_button.config(text="Resume")
         status_var.set("Paused")
 
+
 def reset_simulation():
     global scheduler, running, tick_job, color_index, initial_processes
+    
     if tick_job:
         root.after_cancel(tick_job)
         tick_job = None
 
     scheduler = None
-    initial_processes.clear()  # Empty out the initial list
+    initial_processes.clear()
     running = False
     pid_to_color.clear()
     color_index = 0
 
+    # reset ui
     start_button.config(state="normal")
     pause_button.config(state="disabled", text="Pause")
     algorithm_combo.config(state="readonly")
@@ -347,11 +359,14 @@ def reset_simulation():
 
     for row in process_table.get_children():
         process_table.delete(row)
+        
     chart_canvas.delete("all")
     chart_canvas.configure(scrollregion=(0, 0, 0, 0))
 
 
-# --- UI Construction ---
+# ui layout
+
+# config stuffs
 config_frame = ttk.LabelFrame(root, text="Scheduler Configuration", padding=10)
 config_frame.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 5))
 config_frame.columnconfigure(10, weight=1)
@@ -385,6 +400,7 @@ pause_button.grid(row=0, column=7, padx=6)
 reset_button = ttk.Button(config_frame, text="Reset", command=reset_simulation)
 reset_button.grid(row=0, column=8, padx=6)
 
+# for process
 process_frame = ttk.LabelFrame(root, text="Add Process", padding=10)
 process_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=5)
 process_frame.columnconfigure(12, weight=1)
@@ -407,12 +423,14 @@ ttk.Button(process_frame, text="Add Process", command=add_process).grid(row=0, c
 ttk.Label(process_frame, textvariable=process_count_var).grid(row=0, column=9, padx=(8, 0), sticky="w")
 ttk.Label(process_frame, textvariable=status_var, foreground="#0b5a8f").grid(row=0, column=10, padx=(20, 0), sticky="w")
 
+# main display
 main_frame = ttk.Frame(root)
 main_frame.grid(row=2, column=0, sticky="nsew", padx=10, pady=(5, 10))
 main_frame.columnconfigure(0, weight=3)
 main_frame.columnconfigure(1, weight=2)
 main_frame.rowconfigure(0, weight=1)
 
+# gantt
 chart_frame = ttk.LabelFrame(main_frame, text="Live Gantt Chart", padding=8)
 chart_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
 chart_frame.rowconfigure(0, weight=1)
@@ -424,6 +442,7 @@ chart_scroll = ttk.Scrollbar(chart_frame, orient="vertical", command=chart_canva
 chart_canvas.configure(yscrollcommand=chart_scroll.set)
 chart_scroll.grid(row=0, column=1, sticky="ns")
 
+# table and metrics right below
 right_frame = ttk.Frame(main_frame)
 right_frame.grid(row=0, column=1, sticky="nsew")
 right_frame.rowconfigure(0, weight=1)
@@ -459,9 +478,7 @@ ttk.Label(metrics_frame, textvariable=time_var).grid(row=0, column=0, sticky="w"
 ttk.Label(metrics_frame, textvariable=avg_wait_var).grid(row=1, column=0, sticky="w", pady=2)
 ttk.Label(metrics_frame, textvariable=avg_turn_var).grid(row=2, column=0, sticky="w", pady=2)
 
-# ==========================================
-# 3. INITIALIZATION & ENTRY
-# ==========================================
+
 def main():
     set_algorithm_fields() 
     root.mainloop()
