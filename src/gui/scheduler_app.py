@@ -348,6 +348,7 @@ def reset_simulation():
     # reset ui
     start_button.config(state="normal")
     pause_button.config(state="disabled", text="Pause")
+    quantum_entry.config(state="normal")
     algorithm_combo.config(state="readonly")
     set_algorithm_fields()
 
